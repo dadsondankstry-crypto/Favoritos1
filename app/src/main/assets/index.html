@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Favoritos Android</title>
+
+<meta name="theme-color" content="#6c5cff">
+<meta name="description" content="Guarde links e arquivos como círculos coloridos. Abra com um toque.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PWA Favoritos">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+<style>
+:root{--bg:#0f1115;--card:#1c1f2b;--card2:#12141e;--text:#fff;--muted:#8b8fa3;--primary:#6c5cff;--border:#2e324a}
+*{box-sizing:border-box;margin:0;padding:0;font-family:system-ui,sans-serif}
+body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:16px}
+header{width:100%;max-width:440px;display:flex;flex-direction:column;gap:12px;margin-bottom:18px}
+
+.app-name-row{display:flex;align-items:center;gap:8px;position:relative;padding-right:42px}
+.app-name{font-size:1.05rem;font-weight:700;letter-spacing:.3px}
+.app-name-badge{font-size:.6rem;font-weight:600;color:#6a6e85;background:#2a2e44;padding:2px 7px;border-radius:6px;letter-spacing:.5px;text-transform:uppercase}
+
+/* Botão 🔄 — checar atualização (canto direito) */
+.btn-check-update{position:absolute;right:0;top:50%;transform:translateY(-50%);width:34px;height:34px;border-radius:50%;background:#2a2e44;border:1px solid var(--border);color:#8b8fa3;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:all .2s;line-height:1}
+.btn-check-update:hover{color:var(--primary);border-color:var(--primary)}
+.btn-check-update:active{transform:translateY(-50%) scale(.92)}
+.btn-check-update.girando{animation:girar .8s linear infinite}
+.btn-check-update.tem-update{color:#ffd700;border-color:#ffd700;box-shadow:0 0 0 0 rgba(255,215,0,.6);animation:pulsarUpdate 1.6s infinite}
+@keyframes girar{from{transform:translateY(-50%) rotate(0deg)}to{transform:translateY(-50%) rotate(360deg)}}
+@keyframes pulsarUpdate{0%{box-shadow:0 0 0 0 rgba(255,215,0,.6)}70%{box-shadow:0 0 0 8px rgba(255,215,0,0)}100%{box-shadow:0 0 0 0 rgba(255,215,0,0)}}
+
+.header-actions{display:flex;justify-content:flex-end;gap:6px;align-items:center}
+.btn{background:var(--primary);color:white;border:none;padding:10px 16px;border-radius:20px;font-weight:800;cursor:pointer}
+.btn-ghost{background:#2a2e44;color:#c8cbe0;border:none;width:38px;height:38px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s}
+.btn-ghost:hover{background:#3a3e5a;color:#fff}
+.btn-ghost:active{transform:scale(.92)}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+
+.grid{width:100%;max-width:440px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.circle-item{display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;position:relative;background:none;border:none;color:inherit;padding:0;font:inherit}
+.circle{width:78px;height:78px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;box-shadow:0 6px 18px rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.12);transition:.15s;overflow:hidden}
+.circle:active{transform:scale(.92)}
+.badge{position:absolute;top:-2px;right:8px;font-size:.6rem;background:#2a2e44;padding:2px 5px;border-radius:8px;border:1px solid var(--border);pointer-events:none}
+.label{font-size:.72rem;text-align:center;color:var(--muted);max-width:88px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.label-sub{font-size:.6rem;color:#5a5e75;max-width:88px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:-3px}
+.add-circle{border:2px dashed #3a3d50;background:transparent!important}
+.add-circle:hover{border-color:var(--primary);color:var(--primary)}
+
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.78);display:none;align-items:center;justify-content:center;padding:16px;z-index:99}
+.modal.active{display:flex}
+.modal-box{background:#1e2130;width:100%;max-width:380px;border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:12px;max-height:90vh;overflow-y:auto}
+.modal-box input{width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card2);color:white;outline:none}
+.tabs-add{display:flex;background:var(--card2);border-radius:10px;padding:3px}
+.tab-add{flex:1;padding:8px;text-align:center;border-radius:7px;font-size:.8rem;font-weight:700;cursor:pointer;color:var(--muted)}
+.tab-add.active{background:var(--primary);color:white}
+.colors{display:flex;gap:7px;flex-wrap:wrap}
+.color-dot{width:30px;height:30px;border-radius:50%;cursor:pointer;border:2px solid transparent}
+.color-dot.sel{border-color:white;transform:scale(1.1)}
+.emojis{display:flex;gap:6px;flex-wrap:wrap}
+.emoji{cursor:pointer;padding:5px 6px;border-radius:7px;border:1px solid transparent;font-size:20px}
+.emoji.sel{border-color:var(--primary);background:rgba(108,92,255,.2)}
+.hint{font-size:.78rem;color:var(--muted);text-align:center;margin-top:14px;line-height:1.4}
+.hint-storage{font-size:.68rem;color:#5a5e75;text-align:center;margin-top:8px;line-height:1.3}
+.file-info{font-size:.8rem;color:var(--muted);background:var(--card2);padding:8px;border-radius:8px;word-break:break-all;line-height:1.5}
+.file-info strong{color:#c8cbe0}
+.toast{position:fixed;bottom:-70px;left:50%;transform:translateX(-50%);background:var(--primary);color:#fff;padding:12px 22px;border-radius:25px;font-weight:700;font-size:.85rem;box-shadow:0 4px 18px rgba(108,92,255,.5);transition:bottom .3s ease-in-out;z-index:1000;text-align:center;max-width:90vw}
+.toast.show{bottom:25px}
+.toast.err{background:#ff3b5c;box-shadow:0 4px 18px rgba(255,59,92,.5)}
+.modal-box.msg{max-width:320px}
+.modal-box.msg p{color:var(--muted);font-size:.9rem;line-height:1.5}
+.modal-actions{display:flex;gap:8px}
+.btn-cancel{flex:1;padding:11px;border-radius:10px;border:none;background:#2a2e44;color:white;cursor:pointer;font-weight:700}
+.btn-confirm{flex:1;padding:11px;border-radius:10px;border:none;background:#ff3b5c;color:white;cursor:pointer;font-weight:800}
+.searchwrap{width:100%;max-width:440px;margin-bottom:16px}
+.searchwrap input{display:block;width:100%;border-radius:14px;background:#1c1f2b;color:#fff;border:1px solid #3a3d50;padding:14px;font-size:14px;outline:none}
+.searchwrap input:focus{border-color:#6c5cff}
+</style>
+</head>
+<body>
+<header>
+  <div class="app-name-row">
+    <span class="app-name">⭐ Favoritos Android</span>
+    <span class="app-name-badge">1.0 • APK</span>
+    
+  </div>
+  <div class="header-actions">
+    <button class="btn-ghost" onclick="exportarBackup()" title="Exportar backup" aria-label="Exportar backup">⬇️</button>
+    <button class="btn-ghost" onclick="importarBackup()" title="Importar backup" aria-label="Importar backup">⬆️</button>
+    <button class="btn" onclick="openAdd()">＋ Novo</button>
+  </div>
+</header>
+
+<div class="searchwrap"><input type="search" id="buscarFav" placeholder="🔎 Buscar favoritos, sites e arquivos..." autocomplete="off"></div>
+<div class="grid" id="grid" role="list"></div>
+<p class="hint">Toque = abre<br>Segure 1s = editar / excluir<br><br>🔗 = link internet<br>📄 = cópia do arquivo guardada no celular (dentro do app)</p>
+<p class="hint-storage" id="storageInfo"></p>
+
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+<div class="modal-box">
+<h3 id="modalTitle">Adicionar</h3>
+
+<div class="tabs-add">
+<div class="tab-add active" id="tabLink" onclick="setMode('link')" role="tab">🔗 Link Internet</div>
+<div class="tab-add" id="tabFile" onclick="setMode('file')" role="tab">📄 Arquivo Local</div>
+</div>
+
+<div id="modeLink">
+<input id="fNameLink" placeholder="Nome: Ex: Cardápio Criança">
+<input id="fUrl" placeholder="Cole o link: https://..." inputmode="url" style="margin-top:8px">
+</div>
+
+<div id="modeFile" style="display:none">
+  <input type="file" id="fileInput" accept=".html,.htm,.txt,.pdf" style="padding:12px">
+  <div id="fileInfo" class="file-info" style="display:none"></div>
+  <input id="fNameFile" placeholder="Nome do atalho: Ex: MultiLang Pro" style="margin-top:8px">
+  <input id="fSource" placeholder="Origem / Pasta (opcional): Ex: Downloads, Meu Drive" style="margin-top:8px">
+</div>
+
+<div><div style="font-size:.8rem;color:var(--muted);margin-bottom:6px">Cor:</div><div class="colors" id="colorPicker"></div></div>
+<div><div style="font-size:.8rem;color:var(--muted);margin-bottom:6px">Ícone:</div><div class="emojis" id="emojiPicker"></div></div>
+
+<div class="modal-actions">
+<button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+<button style="flex:1;padding:11px;border-radius:10px;border:none;background:var(--primary);color:white;font-weight:800;cursor:pointer" onclick="saveFav()">Salvar Círculo</button>
+</div>
+<div id="delArea" style="display:none"><button id="btnExportarItem" style="width:100%;padding:10px;border-radius:10px;border:none;background:#138b79;color:white;cursor:pointer;font-weight:700;margin-bottom:8px" onclick="exportarArquivoAtual()">📥 Exportar arquivo original</button><button style="width:100%;padding:10px;border-radius:10px;border:none;background:#ff3b5c;color:white;cursor:pointer;font-weight:700" onclick="deleteFav()">🗑️ Excluir</button></div>
+</div>
+</div>
+
+<div class="modal" id="confirmModal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+  <div class="modal-box msg">
+    <h3 id="confirmTitle">Confirmar</h3>
+    <p id="confirmText"></p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="fecharConfirm(false)">Cancelar</button>
+      <button class="btn-confirm" id="confirmOk" onclick="fecharConfirm(true)">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ================================================================
+ * Favoritos Android 1.0, baseado no arquivo do usuario
+ * - Backup JSON/arquivos completos
+ * - Arquivos importados guardados em IndexedDB
+ * ================================================================ */
+
+const KEY = 'rl_2em1_v3';
+const COLORS = ["#6c5cff","#ff6b6b","#4ecdc4","#ffd93d","#6bcf7f","#ff8fab","#48cae4","#ff9e00","#a78bfa","#2b2e44"];
+const EMOJIS = ["🔗","🍔","👶","🍕","🍟","🥤","🍰","📋","⭐","❤️","🍝","☕","📚","🇺🇸","🇩🇪","🇮🇹","🇪🇸","🇫🇷","🇧🇷","📄","💾","🧠"];
+
+/* ================================================================
+ * IndexedDB — guarda o conteúdo dos arquivos fora do localStorage
+ * ================================================================ */
+const IDB_NAME = 'pwa-favoritos-db';
+const IDB_STORE = 'contents';
+let _idbPromise = null;
+
+function abrirIDB() {
+  if (_idbPromise) return _idbPromise;
+  _idbPromise = new Promise((resolve, reject) => {
+    if (!('indexedDB' in window)) return reject(new Error('IndexedDB indisponível'));
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE, { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+    req.onblocked = () => reject(new Error('IndexedDB bloqueado'));
+  });
+  return _idbPromise;
+}
+
+async function idbPut(id, content) {
+  const db = await abrirIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put({ id, content });
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error('Transação abortada'));
+  });
+}
+
+async function idbGet(id) {
+  const db = await abrirIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readonly');
+    const req = tx.objectStore(IDB_STORE).get(id);
+    req.onsuccess = () => {
+      const r = req.result;
+      resolve(r && typeof r.content === 'string' ? r.content : null);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbDel(id) {
+  const db = await abrirIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function idbClear() {
+  const db = await abrirIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/* ================================================================
+ * Estado
+ * ================================================================ */
+let favs = [];
+try {
+  const raw = localStorage.getItem(KEY);
+  const parsed = raw ? JSON.parse(raw) : [];
+  favs = Array.isArray(parsed) ? parsed : [];
+} catch (e) {
+  console.warn('Storage corrompido, começando vazio:', e);
+  favs = [];
+}
+
+let editingId = null, selColor = COLORS[0], selEmoji = "🔗", currentMode = 'link';
+let pendingContent = null, pendingFileName = "", pendingSize = 0, pendingIsBinary = false;
+let pendingLastModified = 0;
+let pressTimer = null;
+let longPressFired = false;
+
+/* ================================================================
+ * UI helpers
+ * ================================================================ */
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.toggle('err', !!isError);
+  t.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+let confirmResolver = null;
+function pedirConfirm(titulo, texto, textoBotao = 'Confirmar') {
+  return new Promise(resolve => {
+    confirmResolver = resolve;
+    document.getElementById('confirmTitle').textContent = titulo;
+    document.getElementById('confirmText').textContent = texto;
+    document.getElementById('confirmOk').textContent = textoBotao;
+    document.getElementById('confirmModal').classList.add('active');
+  });
+}
+function fecharConfirm(valor) {
+  document.getElementById('confirmModal').classList.remove('active');
+  const r = confirmResolver;
+  confirmResolver = null;
+  if (r) r(valor);
+}
+
+function persistir() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(favs));
+    return true;
+  } catch (e) {
+    const nome = e && e.name;
+    if (nome === 'QuotaExceededError' || nome === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22) {
+      showToast('Metadados cheios. Exporte um backup e limpe favoritos.', true);
+    } else {
+      showToast('Erro ao salvar: ' + (e.message || e), true);
+    }
+    return false;
+  }
+}
+
+async function atualizarInfoStorage() {
+  const el = document.getElementById('storageInfo');
+  if (!el) return;
+  if (!navigator.storage || !navigator.storage.estimate) { el.textContent = ''; return; }
+  try {
+    const { usage = 0, quota = 0 } = await navigator.storage.estimate();
+    const mb = n => (n / 1048576).toFixed(1);
+    el.textContent = '💾 ' + mb(usage) + ' MB usados · ~' + mb(quota) + ' MB disponíveis';
+  } catch { el.textContent = ''; }
+}
+
+async function migrarConteudosParaIDB() {
+  try {
+    await abrirIDB();
+  } catch (e) {
+    console.warn('IndexedDB indisponível, mantendo localStorage:', e);
+    return false;
+  }
+  let migrou = 0;
+  for (const f of favs) {
+    if (f.type === 'file' && typeof f.content === 'string' && !f.contentInIdb) {
+      try { await idbPut(f.id, f.content); migrou++; }
+      catch (e) { console.warn('Falha ao migrar ' + f.name + ':', e); continue; }
+      delete f.content;
+      f.contentInIdb = true;
+    }
+  }
+  if (migrou > 0) {
+    persistir();
+    console.log('✅ ' + migrou + ' conteúdo(s) migrado(s) para IndexedDB.');
+  }
+  return migrou > 0;
+}
+
+async function absorverConteudos(lista) {
+  const metas = [];
+  for (const f of lista) {
+    if (f && f.type === 'file' && typeof f.content === 'string') {
+      try { await idbPut(f.id, f.content); }
+      catch (e) { console.warn('Falha ao gravar conteúdo de ' + f.name + ':', e); }
+      const { content, ...resto } = f;
+      resto.contentInIdb = true;
+      metas.push(resto);
+    } else {
+      metas.push(f);
+    }
+  }
+  return metas;
+}
+
+/* ================================================================
+ * Render
+ * ================================================================ */
+function init() {
+  renderColors();
+  renderEmojis();
+  renderGrid();
+  atualizarInfoStorage();
+
+  migrarConteudosParaIDB().then(mudou => {
+    if (mudou) { renderGrid(); atualizarInfoStorage(); }
+  });
+}
+
+function setMode(m) {
+  currentMode = m;
+  document.getElementById('tabLink').classList.toggle('active', m === 'link');
+  document.getElementById('tabFile').classList.toggle('active', m === 'file');
+  document.getElementById('modeLink').style.display = m === 'link' ? 'block' : 'none';
+  document.getElementById('modeFile').style.display = m === 'file' ? 'block' : 'none';
+}
+
+function renderColors() {
+  const c = document.getElementById('colorPicker');
+  c.innerHTML = '';
+  COLORS.forEach(col => {
+    const d = document.createElement('div');
+    d.className = 'color-dot' + (col === selColor ? ' sel' : '');
+    d.style.background = col;
+    d.setAttribute('role', 'button');
+    d.setAttribute('aria-label', 'Cor ' + col);
+    d.onclick = () => { selColor = col; renderColors(); };
+    c.appendChild(d);
+  });
+}
+
+function renderEmojis() {
+  const c = document.getElementById('emojiPicker');
+  c.innerHTML = '';
+  EMOJIS.forEach(em => {
+    const d = document.createElement('div');
+    d.className = 'emoji' + (em === selEmoji ? ' sel' : '');
+    d.textContent = em;
+    d.setAttribute('role', 'button');
+    d.onclick = () => { selEmoji = em; renderEmojis(); };
+    c.appendChild(d);
+  });
+}
+
+function renderGrid() {
+  const g = document.getElementById('grid');
+  g.innerHTML = '';
+  const filtro = (document.getElementById('buscarFav')?.value || '').toLocaleLowerCase('pt-BR').trim();
+  favs.filter(f => !filtro || (f.name || '').toLocaleLowerCase('pt-BR').includes(filtro) || (f.originalName || '').toLocaleLowerCase('pt-BR').includes(filtro) || (f.url || '').toLocaleLowerCase('pt-BR').includes(filtro)).forEach(f => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'circle-item';
+    item.setAttribute('role', 'listitem');
+    item.setAttribute('aria-label', f.name + (f.type === 'file' ? ', arquivo' : ', link'));
+
+    const circle = document.createElement('div');
+    circle.className = 'circle';
+    circle.style.background = f.color;
+    circle.textContent = f.emoji;
+
+    const startPress = () => {
+      longPressFired = false;
+      pressTimer = setTimeout(() => {
+        longPressFired = true;
+        openEdit(f.id);
+      }, 650);
+    };
+    const cancelPress = () => clearTimeout(pressTimer);
+
+    circle.addEventListener('touchstart', startPress, { passive: true });
+    circle.addEventListener('touchend', cancelPress);
+    circle.addEventListener('touchcancel', cancelPress);
+    circle.addEventListener('mousedown', startPress);
+    circle.addEventListener('mouseup', cancelPress);
+    circle.addEventListener('mouseleave', cancelPress);
+
+    item.addEventListener('click', (e) => {
+      if (longPressFired) { e.preventDefault(); longPressFired = false; return; }
+      openFav(f.id);
+    });
+    item.addEventListener('contextmenu', e => e.preventDefault());
+
+    const label = document.createElement('div');
+    label.className = 'label';
+    label.textContent = f.name;
+
+    const badge = document.createElement('div');
+    badge.className = 'badge';
+    badge.textContent = f.type === 'file' ? '📄' : '🔗';
+
+    item.appendChild(circle);
+    item.appendChild(badge);
+    item.appendChild(label);
+
+    if (f.type === 'file' && f.source) {
+      const sub = document.createElement('div');
+      sub.className = 'label-sub';
+      sub.textContent = '📁 ' + f.source;
+      item.appendChild(sub);
+    }
+
+    g.appendChild(item);
+  });
+
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'circle-item';
+  add.setAttribute('aria-label', 'Adicionar novo');
+  add.onclick = openAdd;
+
+  const ac = document.createElement('div');
+  ac.className = 'circle add-circle';
+  ac.textContent = '＋';
+  const al = document.createElement('div');
+  al.className = 'label';
+  al.textContent = 'Adicionar';
+  add.appendChild(ac); add.appendChild(al);
+  g.appendChild(add);
+}
+
+/* ================================================================
+ * Modal: novo / editar
+ * ================================================================ */
+function openAdd() {
+  editingId = null;
+  pendingContent = null; pendingFileName = ""; pendingSize = 0;
+  pendingIsBinary = false; pendingLastModified = 0;
+  document.getElementById('fNameLink').value = '';
+  document.getElementById('fNameFile').value = '';
+  document.getElementById('fSource').value = '';
+  document.getElementById('fUrl').value = '';
+  document.getElementById('fileInput').value = '';
+  document.getElementById('fileInfo').style.display = 'none';
+  setMode('link');
+  selColor = COLORS[0]; selEmoji = "🔗"; renderColors(); renderEmojis();
+  document.getElementById('modalTitle').textContent = 'Novo Círculo';
+  document.getElementById('delArea').style.display = 'none';
+  document.getElementById('modal').classList.add('active');
+  setTimeout(() => document.getElementById('fNameLink').focus(), 50);
+}
+
+async function openEdit(id) {
+  const f = favs.find(x => x.id === id);
+  if (!f) return;
+  editingId = id;
+
+  if (f.type === 'file') {
+    setMode('file');
+
+    let content = (typeof f.content === 'string') ? f.content : null;
+    if (content === null) {
+      try { content = await idbGet(f.id); } catch (e) { console.warn(e); }
+      // Não guardar o texto no vetor favs: localStorage contém apenas metadados.
+    }
+    pendingContent = content;
+    pendingFileName = f.originalName || '';
+    pendingSize = f.sizeKB || 0;
+    pendingIsBinary = !!f.isBinary;
+    pendingLastModified = f.lastModified || 0;
+
+    document.getElementById('fNameFile').value = f.name;
+    document.getElementById('fSource').value = f.source || '';
+
+    const info = document.getElementById('fileInfo');
+    info.style.display = 'block';
+    info.innerHTML = montarInfoArquivo(f) + (content === null ? ' · <span style="color:#ff3b5c">conteúdo ausente</span>' : '');
+  } else {
+    setMode('link');
+    document.getElementById('fNameLink').value = f.name;
+    document.getElementById('fUrl').value = f.url;
+  }
+
+  selColor = f.color; selEmoji = f.emoji;
+  renderColors(); renderEmojis();
+  document.getElementById('modalTitle').textContent = 'Editar Círculo';
+  document.getElementById('delArea').style.display = 'block';
+  document.getElementById('btnExportarItem').style.display = f.type === 'file' ? 'block' : 'none';
+  document.getElementById('modal').classList.add('active');
+}
+
+function montarInfoArquivo(f) {
+  const linhas = [];
+  linhas.push('<strong>' + (f.originalName || 'arquivo') + '</strong>');
+  linhas.push((f.sizeKB || 0) + ' KB');
+  if (f.lastModified) linhas.push('modificado ' + new Date(f.lastModified).toLocaleDateString('pt-BR'));
+  if (f.source) linhas.push('📁 ' + f.source);
+  if (f.addedAt) linhas.push('adicionado ' + new Date(f.addedAt).toLocaleDateString('pt-BR'));
+  return linhas.join(' · ') + ' ✓';
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('active');
+}
+
+/* ================================================================
+ * Leitura do arquivo
+ * ================================================================ */
+document.getElementById('fileInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const MAX_BIN = 1_500_000;
+  const MAX_TXT = 2_000_000;
+  const isBinary = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
+  const limite = isBinary ? MAX_BIN : MAX_TXT;
+
+  if (file.size > limite) {
+    showToast('Arquivo muito grande (máx ' + Math.round(limite / 1024) + ' KB). Use um link.', true);
+    e.target.value = '';
+    pendingContent = null;
+    return;
+  }
+
+  pendingFileName = file.name;
+  pendingSize = Math.round(file.size / 1024);
+  pendingIsBinary = isBinary;
+  pendingContent = null;
+  pendingLastModified = file.lastModified || 0;
+
+  const info = document.getElementById('fileInfo');
+  info.style.display = 'block';
+  info.textContent = 'Lendo: ' + file.name + ' (' + pendingSize + ' KB)...';
+
+  const reader = new FileReader();
+  reader.onload = ev => {
+    pendingContent = ev.target.result;
+    const mod = pendingLastModified ? new Date(pendingLastModified).toLocaleDateString('pt-BR') : '—';
+    info.innerHTML = '<strong>' + file.name + '</strong><br>' +
+      pendingSize + ' KB · modificado em ' + mod + (isBinary ? ' · binário' : ' · texto');
+    if (!document.getElementById('fNameFile').value) {
+      document.getElementById('fNameFile').value = file.name.replace(/\.[^/.]+$/, '');
+    }
+    const sourceInput = document.getElementById('fSource');
+    if (!sourceInput.value.trim()) {
+      sourceInput.value = isBinary ? 'Documentos' : 'Downloads';
+    }
+  };
+  reader.onerror = () => {
+    showToast('Erro ao ler o arquivo.', true);
+    pendingContent = null;
+    info.textContent = 'Falha ao ler o arquivo.';
+  };
+
+  if (isBinary) reader.readAsDataURL(file);
+  else reader.readAsText(file);
+});
+
+/* ================================================================
+ * Salvar
+ * ================================================================ */
+async function saveFav() {
+  if (currentMode === 'link') {
+    let name = document.getElementById('fNameLink').value.trim();
+    let url = document.getElementById('fUrl').value.trim();
+    if (!name) return showToast('Coloca um nome.', true);
+    if (!url) return showToast('Cola o link.', true);
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+
+    const snapshot = favs.slice();
+
+    if (editingId) {
+      const f = favs.find(x => x.id === editingId);
+      if (f.type === 'file') {
+        try { await idbDel(f.id); } catch (e) { console.warn(e); }
+      }
+      Object.assign(f, {
+        name, url, color: selColor, emoji: selEmoji, type: 'link',
+        content: undefined, contentInIdb: undefined, originalName: undefined,
+        sizeKB: undefined, isBinary: undefined, source: undefined,
+        lastModified: undefined, addedAt: undefined
+      });
+    } else {
+      favs.push({ id: novoId(), name, url, color: selColor, emoji: selEmoji, type: 'link' });
+    }
+
+    if (!persistir()) { favs = snapshot; renderGrid(); return; }
+    closeModal();
+    renderGrid();
+    atualizarInfoStorage();
+    showToast(editingId ? 'Círculo atualizado.' : 'Círculo criado.');
+    return;
+  }
+
+  const name = document.getElementById('fNameFile').value.trim();
+  const source = document.getElementById('fSource').value.trim();
+  const agora = Date.now();
+
+  if (pendingContent === null) return showToast('Escolha um arquivo primeiro!', true);
+  if (!name) return showToast('Coloca nome pro círculo.', true);
+
+  const id = editingId || novoId();
+
+  try {
+    await idbPut(id, pendingContent);
+  } catch (e) {
+    showToast('Erro ao salvar arquivo: ' + (e.message || e), true);
+    return;
+  }
+
+  const ficha = {
+    id, name,
+    originalName: pendingFileName,
+    sizeKB: pendingSize,
+    isBinary: pendingIsBinary,
+    source: source || '',
+    lastModified: pendingLastModified || agora,
+    addedAt: agora,
+    color: selColor,
+    emoji: selEmoji,
+    type: 'file',
+    contentInIdb: true
+  };
+
+  const snapshot = favs.slice();
+  let ok = true;
+
+  if (editingId) {
+    const idx = favs.findIndex(x => x.id === editingId);
+    if (idx >= 0) {
+      ficha.addedAt = favs[idx].addedAt || agora;
+      favs[idx] = ficha;
+    } else {
+      favs.push(ficha);
+    }
+  } else {
+    favs.push(ficha);
+  }
+
+  if (!persistir()) { favs = snapshot; renderGrid(); return; }
+
+  closeModal();
+  renderGrid();
+  atualizarInfoStorage();
+  showToast(editingId ? 'Círculo atualizado.' : 'Círculo criado.');
+}
+
+/* ================================================================
+ * Excluir
+ * ================================================================ */
+async function deleteFav() {
+  const f = favs.find(x => x.id === editingId);
+  if (!f) return;
+  const ok = await pedirConfirm('Excluir círculo', 'Excluir "' + f.name + '" permanentemente?', 'Excluir');
+  if (!ok) return;
+
+  const snapshot = favs.slice();
+  favs = favs.filter(x => x.id !== editingId);
+  try { await idbDel(editingId); } catch (e) { console.warn(e); }
+  if (!persistir()) { favs = snapshot; renderGrid(); return; }
+  closeModal();
+  renderGrid();
+  atualizarInfoStorage();
+  showToast('Círculo excluído.');
+}
+
+/* ================================================================
+ * Abrir
+ * ================================================================ */
+function abrirUrl(url) {
+  // No APK abre na WebView do próprio app, sem iniciar Chrome externo.
+  // No PWA original continua usando a aba do navegador.
+  if (window.AndroidBridge) {
+    try { window.location.assign(url); return true; }
+    catch(e) { showToast('Não consegui abrir: ' + e.message, true); return false; }
+  }
+  const w = window.open(url, '_blank');
+  if (!w) { showToast('Pop-up bloqueado pelo navegador.', true); return false; }
+  try { w.opener = null; } catch {}
+  return true;
+}
+
+async function openFav(id) {
+  const f = favs.find(x => x.id === id);
+  if (!f) return;
+
+  if (f.type === 'link') { abrirUrl(f.url); return; }
+
+  let content = (typeof f.content === 'string') ? f.content : null;
+  if (content === null) {
+    try { content = await idbGet(f.id); } catch (e) { console.warn(e); }
+    // Sem duplicar conteúdo no localStorage.
+  }
+  if (content === null) { showToast('Conteúdo do arquivo não encontrado.', true); return; }
+
+  if (f.isBinary && content.startsWith('data:')) {
+    abrirUrl(content);
+    return;
+  }
+
+  const mime = /\.pdf$/i.test(f.originalName || '') ? 'application/pdf' : 'text/html';
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const ok = abrirUrl(url);
+  if (!ok) { URL.revokeObjectURL(url); return; }
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+/* ================================================================
+ * Backup
+ * ================================================================ */
+async function exportarBackup() {
+  if (!favs.length) return showToast('Nada para exportar.', true);
+
+  const completos = [];
+  for (const f of favs) {
+    if (f.type === 'file') {
+      let content = (typeof f.content === 'string') ? f.content : null;
+      if (content === null) {
+        try { content = await idbGet(f.id); } catch (e) { console.warn(e); }
+      }
+      if (content === null) return showToast('Backup cancelado: arquivo não encontrado: ' + f.name, true);
+      completos.push({ ...f, content });
+    } else {
+      completos.push(f);
+    }
+  }
+
+  const data = { app: 'pwa-favoritos', v: 4, exportedAt: new Date().toISOString(), favs: completos };
+  const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+  await salvarBlob(blob, 'favoritos-backup-' + new Date().toISOString().slice(0, 10) + '.json');
+  showToast('Backup preparado (' + completos.length + ' favoritos).');
+}
+
+function importarBackup() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json,application/json';
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+    if (file.size > 100_000_000) return showToast('Arquivo muito grande.', true);
+
+    let novos;
+    try {
+      const txt = await file.text();
+      const data = JSON.parse(txt);
+      novos = Array.isArray(data) ? data : (data && data.favs);
+    } catch (e) {
+      return showToast('Backup inválido: ' + e.message, true);
+    }
+    if (!Array.isArray(novos) || !novos.length) return showToast('Backup vazio ou inválido.', true);
+
+    const ok = await pedirConfirm(
+      'Importar backup',
+      'Encontrados ' + novos.length + ' favoritos. Os atuais (' + favs.length + ') serão substituídos.',
+      'Substituir'
+    );
+    if (!ok) return;
+
+    let metas;
+    try {
+      metas = await absorverConteudos(novos);
+    } catch (e) {
+      return showToast('Falha ao importar: ' + (e.message || e), true);
+    }
+
+    const snapshot = favs.slice();
+    favs = metas;
+    if (!persistir()) { favs = snapshot; renderGrid(); return; }
+    renderGrid();
+    atualizarInfoStorage();
+    showToast('Importados ' + favs.length + ' favoritos.');
+  };
+  input.click();
+}
+
+function novoId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+/* ================================================================
+ * Atalhos de teclado / backdrop
+ * ================================================================ */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('confirmModal').classList.contains('active')) fecharConfirm(false);
+  else if (document.getElementById('modal').classList.contains('active')) closeModal();
+});
+
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target.id === 'modal') closeModal();
+});
+document.getElementById('confirmModal').addEventListener('click', e => {
+  if (e.target.id === 'confirmModal') fecharConfirm(false);
+});
+
+init();
+
+/* ================================================================
+ * Exportar conteúdo armazenado e navegação do Android
+ * ================================================================ */
+async function salvarBlob(blob, nome) {
+  if (window.AndroidBridge && typeof window.AndroidBridge.saveDocument === 'function') {
+    // WebView não baixa blob: com o DownloadManager; ponte nativa usa SAF.
+    if (blob.size > 7000000) { showToast('Arquivo grande demais para exportação direta (>7 MB).', true); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataURL = String(reader.result || '');
+      const b64 = dataURL.split(',')[1];
+      if (!b64) return showToast('Falha ao preparar exportação.', true);
+      window.AndroidBridge.saveDocument(nome, blob.type || 'application/octet-stream', b64);
+    };
+    reader.onerror = () => showToast('Falha ao exportar.', true);
+    reader.readAsDataURL(blob);
+    return;
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = nome;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+async function exportarArquivoAtual() {
+  const f = favs.find(x => x.id === editingId && x.type === 'file');
+  if (!f) return showToast('Escolha um arquivo guardado.', true);
+  let conteudo = typeof f.content === 'string' ? f.content : null;
+  if (conteudo === null) { try { conteudo = await idbGet(f.id); } catch(e) {} }
+  if (conteudo === null) return showToast('Conteúdo não disponível neste dispositivo.', true);
+  let blob;
+  if (f.isBinary && conteudo.startsWith('data:')) {
+    try { blob = await (await fetch(conteudo)).blob(); }
+    catch(e) { return showToast('Falha ao converter PDF.', true); }
+  } else {
+    const mime = /\.txt$/i.test(f.originalName || '') ? 'text/plain;charset=utf-8' : 'text/html;charset=utf-8';
+    blob = new Blob([conteudo], {type:mime});
+  }
+  await salvarBlob(blob, f.originalName || f.name || 'arquivo.html');
+}
+document.getElementById('buscarFav').addEventListener('input', renderGrid);
+</script>
+</body>
+</html>
